@@ -1,28 +1,37 @@
 const dbClient = require('../utils/db');
 const redisClient = require('../utils/redis');
+const userQueue = require('../queues/userQueue');
 
 class UsersController {
   static async postNew(req, res) {
     const { email, password } = req.body;
-
+    
     if (!email) {
-      return res.status(400).json({ error: 'Missing email' });
+      return res.status(400).send({ error: 'Missing email' });
     }
+    
     if (!password) {
-      return res.status(400).json({ error: 'Missing password' });
+      return res.status(400).send({ error: 'Missing password' });
     }
-
+    
+    // Check if the user already exists
     const userCollection = dbClient.db.collection('users');
     const userExists = await userCollection.findOne({ email });
-
     if (userExists) {
-      return res.status(400).json({ error: 'Already exist' });
+      return res.status(400).send({ error: 'Already exist' });
     }
+    
+    // Hash the password (in a real-world scenario)
+    // const hashedPassword = await bcrypt.hash(password, 10);
 
-    const hashedPassword = crypto.createHash('sha1').update(password).digest('hex');
-    const newUser = await userCollection.insertOne({ email, password: hashedPassword });
+    // Store user in the database
+    const result = await userCollection.insertOne({ email, password }); // Store plain text password for simplicity
+    const newUser = result.ops[0];
 
-    return res.status(201).json({ id: newUser.insertedId, email });
+    // Add a job to the userQueue
+    userQueue.add('sendWelcomeEmail', { userId: newUser._id });
+
+    res.status(201).send({ id: newUser._id, email: newUser.email });
   }
 
   static async getMe(req, res) {

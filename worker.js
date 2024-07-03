@@ -51,3 +51,28 @@ fileQueue.process(async (job, done) => {
     done(error);
   }
 });
+
+// Create the queue for user jobs
+const userQueue = new Bull('userQueue');
+
+// Process the user queue
+userQueue.process('sendWelcomeEmail', async (job) => {
+  const { userId } = job.data;
+
+  if (!userId) {
+    throw new Error('Missing userId');
+  }
+
+  const userCollection = dbClient.db.collection('users');
+  const user = await userCollection.findOne({ _id: userId });
+
+  if (!user) {
+    throw new Error('User not found');
+  }
+
+  // Simulate sending email
+  console.log(`Welcome ${user.email}!`);
+  // In a real application, you would use a third-party service like Mailgun to send the email
+});
+
+console.log('Worker is ready');
